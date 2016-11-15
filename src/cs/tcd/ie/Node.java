@@ -1,14 +1,18 @@
 package cs.tcd.ie;
 
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.CountDownLatch;
-
+/**
+ * @author Dylan Lewis
+ * @author Stefan Weber
+ */
 public abstract class Node {
-	static final int PACKETSIZE = 65536;
-
+	static final int PACKETSIZE = 1252;
+	
 	DatagramSocket socket;
 	Listener listener;
 	CountDownLatch latch;

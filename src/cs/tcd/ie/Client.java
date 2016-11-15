@@ -1,15 +1,19 @@
 package cs.tcd.ie;
 
 /**
+ * @author Dylan Lewis
+ * @author Stefan Weber
  * 
+ * Sends data to
  */
 
 import java.net.DatagramSocket;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
+import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import tcdIO.*;
@@ -25,14 +29,15 @@ public class Client extends Node {
 	static final int DEFAULT_SRC_PORT = 50000;
 	static final int DEFAULT_DST_PORT = 50001;
 	static final String DEFAULT_DST_NODE = "localhost";
-	static final int NUM_OF_FRAMES = 4;
+	static final String URI_SCHEME="file://";
+	
+	static final int NUM_OF_FRAMES = 2;
 	// length in bytes
 	static final int HEADER_LENGTH = 2;
 	static final int DATA_LENGTH = 1250;
-	
 	private int frameToSend;
 	private int ackFrame;
-	private String[] packets;
+	
 	Terminal terminal;
 	InetSocketAddress dstAddress;
 	private byte[] data;
@@ -52,6 +57,7 @@ public class Client extends Node {
 			listener.go();
 			frameToSend = 0;
 			ackFrame = 0;
+		
 		} catch (java.lang.Exception e) {
 			e.printStackTrace();
 		}
@@ -106,13 +112,28 @@ public class Client extends Node {
 	public synchronized void start() throws Exception {
 		try {
 			
-			byte[] totalData = null;
-			String contents = (terminal.readString("Enter file Name to send: "));
-			totalData = Files.readAllBytes(Paths.get(contents));
-			
-			if (totalData != null) {
-				int start = 0;
 
+			byte[] totalData = null;
+//get file name			
+			String contents = (terminal.readString("Enter file Name to send: "));					
+//create a URI from file name			
+			URI theUri=new URI(URI_SCHEME+contents);
+//get a path from the URI		 
+			Path path=Paths.get(theUri);
+//check it exists			
+			if(path==null){
+				terminal.println("Supplied Filename '"+contents+"' cannot be read");
+				return;
+			}
+//read the file in			
+			totalData = Files.readAllBytes(path);
+
+			if (totalData != null) {
+//if it's all good - display the file contents and send to the server				
+				String checkString=new String(totalData);
+				terminal.println("Reading file "+contents+"\nfile contains: \n"+totalData.length+"bytes \n sending  text :"+checkString);
+				int start = 0;
+				//does this until the all packets sent
 				while (start != -1) {
 
 					if (frameToSend == ackFrame) {
@@ -130,32 +151,27 @@ public class Client extends Node {
 				data = null;
 
 			}
-			else{
-				System.out.println("Invalid file");
-			}
 		} catch (NullPointerException e) {
+//something bad happened...			
+			terminal.println("Exception "+e.getLocalizedMessage());
 		}
 
 	}
-	public void sendSize(byte[] totalData){
-		ByteBuffer b = ByteBuffer.allocate(4);
-		b.putInt(totalData.length);
-		byte [] size = b.array();
-		
-		
 	
-		
-	}
-
+/**
+ * 
+ * @param packets
+ * @param start
+ * @return -1 or start += DATA_LENGTH
+ * returns -1 if this is the final data packet to be sent
+ */
 	public int getNextdataPack(byte[] packets, int start) {
 		if (packets.length - start < DATA_LENGTH && packets.length - start > 0) {
 			byte[] newPackets = new byte[packets.length + HEADER_LENGTH];
 			System.arraycopy(packets, start, newPackets, HEADER_LENGTH, (packets.length -start));
-			newPackets[0] = 1;
-			newPackets[1] = 0;
-			newPackets[1] += (byte) (frameToSend << 4);
-			newPackets[1] += (byte) (ackFrame) + 0x1000;
-
+			int next = ackFrame + 8;
+			newPackets[0] = 1;	
+			newPackets[1] = (byte) ((frameToSend << 4) | next );
 			data = newPackets;
 			start = packets.length;
 			start = -1;
@@ -163,9 +179,7 @@ public class Client extends Node {
 			byte[] newPackets = new byte[DATA_LENGTH + HEADER_LENGTH];
 			System.arraycopy(packets, start, newPackets, HEADER_LENGTH, DATA_LENGTH);
 			newPackets[0] = 1;
-			newPackets[1] = 0;
-			newPackets[1] += (byte) (frameToSend << 4);
-			newPackets[1] += (byte) (ackFrame);
+			newPackets[1] = (byte) ((frameToSend << 4) | ackFrame);
 			data = newPackets;
 			start += DATA_LENGTH;
 		} else {
